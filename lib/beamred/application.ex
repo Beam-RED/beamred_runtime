@@ -1,4 +1,4 @@
-defmodule BeamRED.Runtime.Application do
+defmodule BeamRED.Application do
   @moduledoc false
 
   use Application

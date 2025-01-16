@@ -14,8 +14,10 @@ defmodule BeamRED.Runtime.Supervisor do
       BeamRED.Runtime,
       BeamRED.Runtime.Storage,
       BeamRED.Runtime.Evaluator,
-      {DynamicSupervisor, name: NodeEx.Runtime.FlowsSupervisor, strategy: :one_for_one},
-      {Registry, keys: :unique, name: NodeEx.Runtime.Registry}
+      {DynamicSupervisor, name: BeamRED.Runtime.FlowsSupervisor, strategy: :one_for_one},
+      {Registry, keys: :unique, name: BeamRED.Runtime.Registry},
+      BeamRED.MQTT.Server,
+      {Phoenix.PubSub, name: BeamRED.PubSub}
     ]
 
     Supervisor.init(children, strategy: :one_for_one)

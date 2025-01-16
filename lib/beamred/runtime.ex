@@ -69,6 +69,35 @@ defmodule BeamRED.Runtime do
     GenServer.call(__MODULE__, {:get_node_pid, id}, @timeout)
   end
 
+  # TODO add rev type instead of String.t()
+  @doc """
+  """
+  @spec get_workspace_rev() :: String.t()
+  def get_workspace_rev() do
+    GenServer.call(__MODULE__, :get_rev, @timeout)
+  end
+
+  @doc """
+  """
+  @spec get_flows() :: {String.t(), list()}
+  def get_flows() do
+    GenServer.call(__MODULE__, :get_flows, @timeout)
+  end
+
+  @doc """
+  """
+  @spec save_flows(list()) :: String.t()
+  def save_flows(flows) do
+    GenServer.call(__MODULE__, {:save_flows, flows})
+  end
+
+  @doc """
+  """
+  @spec get_workspace_rev() :: String.t()
+  def get_workspace_rev() do
+    GenServer.call(__MODULE__, :get_rev, @timeout)
+  end
+
   @doc """
   """
   @spec add_node_type(module()) :: :ok
@@ -162,6 +191,21 @@ defmodule BeamRED.Runtime do
       [{pid, _}] ->
         {:reply, {:ok, pid}, state}
     end
+  end
+
+  def handle_call(:get_rev, _from, state) do
+    rev = BeamRED.Runtime.Storage.get_rev()
+    {:reply, rev, state}
+  end
+
+  def handle_call(:get_flows, _from, state) do
+    flows = BeamRED.Runtime.Storage.get_flows()
+    {:reply, flows, state}
+  end
+
+  def handle_call({:save_flows, flows}, _from, state) do
+    rev = BeamRED.Runtime.Storage.save_flows(flows)
+    {:reply, rev, state}
   end
 
   @impl true

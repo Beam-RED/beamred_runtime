@@ -1,4 +1,4 @@
-defmodule NodeEx.MQTT.Topics do
+defmodule BeamRED.MQTT.Topics do
   @type published_topic() :: [String.t()]
   @type subscribed_topic() :: [String.t()]
 
