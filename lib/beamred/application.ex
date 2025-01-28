@@ -11,8 +11,8 @@ defmodule BeamRED.Application do
       BeamRED.Runtime.Evaluator,
       {DynamicSupervisor, name: BeamRED.Runtime.FlowsSupervisor, strategy: :one_for_one},
       {Registry, keys: :unique, name: BeamRED.Runtime.Registry},
-      BeamRED.MQTT.Server,
-      {Phoenix.PubSub, name: BeamRED.PubSub}
+      {Phoenix.PubSub, name: BeamRED.PubSub},
+      BeamRED.MQTT.Server
     ]
 
     opts = [strategy: :one_for_one, name: BeamRED.Runtime.Supervisor]

@@ -1,104 +1,44 @@
 defmodule BeamRED.MQTT.Server do
-  alias BeamRED.MQTT.Subscriptions
   use GenServer
-  require Logger
+  alias Phoenix.PubSub
+  alias BeamRED.MQTT.TopicTrie
 
-  @type package_identifier() :: 0x0001..0xFFFF | nil
-  @type topic() :: String.t()
-  @type topic_filter() :: String.t()
-  @type payload() :: binary() | nil
-
-  @doc """
-  Starts new MQTT server and links it to the current process
-  """
-  def start_link(_) do
-    GenServer.start_link(__MODULE__, nil, name: __MODULE__)
+  def start_link(opts) do
+    GenServer.start_link(__MODULE__, opts, name: __MODULE__)
   end
 
-  @spec subscribe([topic_filter()]) :: :ok
-  def subscribe(topics) do
-    GenServer.call(__MODULE__, {:subscribe, topics})
+  def init(_opts) do
+    PubSub.subscribe(BeamRED.PubSub, "topic_updates")
+    {:ok, %{trie: TopicTrie.new()}}
   end
 
-  @spec unsubscribe([topic_filter()] | :all) :: :ok
-  def unsubscribe(topics) do
-    GenServer.call(__MODULE__, {:unsubscribe, topics})
+  # Public API
+  def subscribe(topic) do
+    :ok = PubSub.broadcast(BeamRED.PubSub, "topic_updates", {:subscribe, topic, self()})
   end
 
-  @spec publish(topic(), payload()) :: :ok
-  def publish(topic, payload) do
-    GenServer.cast(__MODULE__, {:publish, topic, payload})
+  def unsubscribe(topic) do
+    :ok = PubSub.broadcast(BeamRED.PubSub, "topic_updates", {:unsubscribe, topic, self()})
   end
 
-  @impl true
-  def init(_) do
-    {:ok, {Subscriptions.new(), %{}}}
+  def publish(topic, message) do
+    :ok = PubSub.broadcast(BeamRED.PubSub, "topic_updates", {:publish, topic, message})
   end
 
-  @impl true
-  def handle_call({:subscribe, topics}, {from, _}, {subscriptions, monitors}) do
-    case Subscriptions.subscribe(subscriptions, from, topics) do
-      :error ->
-        {:reply, :error, subscriptions}
-
-      new_subscriptions ->
-        reference = Process.monitor(from)
-        new_monitors = Map.put(monitors, from, reference)
-        {:reply, :ok, {new_subscriptions, new_monitors}}
-    end
+  # GenServer callbacks
+  def handle_info({:subscribe, topic, pid}, state) do
+    trie = TopicTrie.add_subscription(state.trie, topic, pid)
+    {:noreply, %{state | trie: trie}}
   end
 
-  @impl true
-  def handle_call({:unsubscribe, topics}, {from, _}, {subscriptions, monitors} = state) do
-    case Subscriptions.unsubscribe(subscriptions, from, topics) do
-      :error ->
-        {:reply, :error, state}
-
-      {:empty, new_subscriptions} ->
-        new_monitors =
-          case Map.fetch(monitors, from) do
-            {:ok, monitor_ref} ->
-              Process.demonitor(monitor_ref)
-              Map.delete(monitors, from)
-
-            _ ->
-              monitors
-          end
-
-        {:reply, :ok, {new_subscriptions, new_monitors}}
-
-      {:not_empty, new_subscriptions} ->
-        {:reply, :ok, {new_subscriptions, monitors}}
-    end
+  def handle_info({:unsubscribe, topic, pid}, state) do
+    trie = TopicTrie.remove_subscription(state.trie, topic, pid)
+    {:noreply, %{state | trie: trie}}
   end
 
-  @impl true
-  def handle_cast({:publish, topic, payload}, {subscriptions, _} = state) do
-    case Subscriptions.list_matched(subscriptions, topic) do
-      :error ->
-        {:noreply, state}
-
-      pids ->
-        for pid <- pids do
-          Logger.debug(
-            "Sending message published to topic #{topic} to subscriber #{inspect(pid)}"
-          )
-
-          send(pid, {:publish, topic, payload})
-        end
-
-        {:noreply, state}
-    end
-  end
-
-  @impl true
-  def handle_info({:DOWN, _ref, :process, pid, _reason}, {subscriptions, monitors}) do
-    Logger.info("Subscriber #{inspect(pid)} exited. Removing its subscriptions")
-    new_monitors = Map.delete(monitors, pid)
-
-    case Subscriptions.unsubscribe(subscriptions, pid, :all) do
-      :error -> {:noreply, {subscriptions, new_monitors}}
-      {_, new_subscriptions} -> {:noreply, {new_subscriptions, new_monitors}}
-    end
+  def handle_info({:publish, topic, message}, state) do
+    subscribers = TopicTrie.find_subscribers(state.trie, topic)
+    Enum.each(subscribers, &send(&1, {:message, topic, message}))
+    {:noreply, state}
   end
 end

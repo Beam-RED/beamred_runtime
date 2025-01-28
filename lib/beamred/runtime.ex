@@ -44,7 +44,7 @@ defmodule BeamRED.Runtime do
   """
   @spec subscribe() :: :ok | {:error, term()}
   def subscribe() do
-    Phoenix.PubSub.subscribe(BeamRED.PubSub, "runtime")
+    BeamRED.MQTT.Server.subscribe("runtime")
   end
 
   @doc """
